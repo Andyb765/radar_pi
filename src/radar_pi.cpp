@@ -236,6 +236,10 @@ int radar_pi::Init(void) {
   m_settings.threshold_red = 255;
   m_settings.threshold_green = 255;
   CLEAR_STRUCT(m_settings.radar_interface_address);
+  wxString empty_info = wxT(" ///");
+  for (size_t r = 0; r < RADARS; r++) {
+    m_settings.navico_radar_info[r] = NavicoRadarInfo(empty_info);
+  }
   m_settings.radar_count = 0;
 
   // Get a pointer to the opencpn display canvas, to use as a parent for the UI
@@ -1404,7 +1408,7 @@ bool radar_pi::LoadConfig(void) {
       pConf->Read(wxString::Format(wxT("Radar%dAddress"), r), &s, "0.0.0.0");
       radar_inet_aton(s.c_str(), &m_settings.radar_address[n].addr);
       m_settings.radar_address[n].port = htons(RadarOrder[ri->m_radar_type]);
-      pConf->Read(wxString::Format(wxT("Radar%dNavicoInfo"), r), &s, "");
+      pConf->Read(wxString::Format(wxT("Radar%dNavicoInfo"), r), &s, " ///");
       m_settings.navico_radar_info[r] = NavicoRadarInfo(s);
 
       pConf->Read(wxString::Format(wxT("Radar%dRange"), r), &v, 2000);
