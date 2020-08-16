@@ -481,14 +481,35 @@ bool radar_pi::MakeRadarSelection() {
     }
   }
 
-  NetworkAddress null = NetworkAddress(wxT(""));
-#define CLEAR_RADAR_INFO                         \
-  CLEAR_STRUCT(m_settings.navico_radar_info[r]); \
-  m_settings.navico_radar_info[r].serialNr = wxT(" ");
+#define CLEAR_RADAR_INFO                \
+  wxString empty_info = wxT(" / / / "); \
+  m_settings.navico_radar_info[r] = NavicoRadarInfo(empty_info);
 
   m_initialized = false;
   SelectDialog dlg(m_parent_window, this);
   if (dlg.ShowModal() == wxID_OK) {
+    // stop the locators, otherwise they keep running without radars
+    if (m_locator) {
+      m_locator->Shutdown();
+      m_locator->Wait();
+    }
+    LOG_INFO(wxT("radar_pi: Navico locator deleted"));
+    m_locator = 0;
+    LOG_INFO(wxT("radar_pi: Raymarine locator deleted"));
+
+    // delete all radars
+    for (size_t r = 0; r < m_settings.radar_count; r++) {
+      if (m_radar[r]) {
+        m_radar[r]->Shutdown();
+        LOG_INFO(wxT("radar_pi: Shutdown radar %i done"), r);
+        RemoveCanvasContextMenuItem(m_context_menu_control_id[r]);
+        delete m_radar[r];
+        m_radar[r] = 0;
+        CLEAR_RADAR_INFO;
+        LOG_INFO(wxT("radar_pi: Shutdown radar %i ready"), r);
+      }
+    }
+    LOG_INFO(wxT("radar_pi: All radars deleted by MakeRadarSelection"));
     m_settings.radar_count = 0;
     r = 0;
     for (size_t i = 0; i < RT_MAX; i++) {
@@ -496,33 +517,20 @@ bool radar_pi::MakeRadarSelection() {
         if (!m_radar[r]) {
           m_settings.window_pos[r] = wxPoint(100 + 512 * r, 100);
           m_settings.control_pos[r] = wxDefaultPosition;
-          CLEAR_RADAR_INFO;
-          m_radar[r] = new RadarInfo(this, r);        
+          m_radar[r] = new RadarInfo(this, r);
         }
         m_radar[r]->m_radar_type = (RadarType)i;
+        if ((m_radar[r]->m_radar_type == RT_3G || m_radar[r]->m_radar_type == RT_4GA || m_radar[r]->m_radar_type == RT_HaloA) &&
+            m_locator == NULL) {
+          m_locator = new NavicoLocate(this);
+          if (m_locator->Run() != wxTHREAD_NO_ERROR) {
+            wxLogError(wxT("radar_pi: unable to start Navico Radar Locator thread"));
+            return 0;
+          }
+        }
         r++;
         m_settings.radar_count = r;
         ret = true;
-      }
-    }
-   
-    for (r = 0; r < M_SETTINGS.radar_count; r++) {
-      if (m_radar[r] && m_radar[r]->m_radar_type != oldRadarType[r]) {
-        m_radar[r]->Shutdown();
-        RemoveCanvasContextMenuItem(m_context_menu_control_id[r]);
-        delete m_radar[r];
-        CLEAR_RADAR_INFO;
-        m_radar[r] = new RadarInfo(this, r);
-      }
-    }
-
-    // And now set the radar types for the selected radars
-    r = 0;
-    for (size_t i = 0; i < RT_MAX; i++) {
-      if (dlg.m_selected[i]->GetValue()) {
-        m_radar[r]->m_radar_type = (RadarType)i;
-        r++;
-        m_settings.radar_count = r;
       }
     }
 
@@ -537,7 +545,6 @@ bool radar_pi::MakeRadarSelection() {
         m_radar[r] = 0;
       }
     }
-
     SetRadarWindowViz();
     TimedControlUpdate();
   }
@@ -545,6 +552,7 @@ bool radar_pi::MakeRadarSelection() {
   SaveConfig();
   return ret;
 }
+
 
 void radar_pi::ShowPreferencesDialog(wxWindow *parent) {
   LOG_DIALOG(wxT("radar_pi: ShowPreferencesDialog"));
