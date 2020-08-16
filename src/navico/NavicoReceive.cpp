@@ -389,6 +389,7 @@ SOCKET NavicoReceive::GetNewReportSocket() {
 
   if (m_interface_addr.IsNull() || m_info.report_addr.IsNull()) {
     LOG_RECEIVE(wxT("radar_pi: %s no address to listen on"), m_ri->m_name);
+    wxMilliSleep(100);   // allow the RadarLocate thread some cycles to find the addresses
     return INVALID_SOCKET;
   }
 
